@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "938979866094",
+    "project_id": "bikri-book",
+    "storage_bucket": "bikri-book.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:938979866094:android:9a488445c1d86a7281caff",
+        "android_client_info": {
+          "package_name": "com.example.bikri_book"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCftRuj3itFK1Cxobl9CAqRVej-AO36cp8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

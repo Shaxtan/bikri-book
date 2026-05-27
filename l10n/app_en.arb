@@ -1,0 +1,66 @@
+{
+  "@@locale": "en",
+
+  "appName": "Bikri-Book",
+  "tagline": "Your shop's accounts, in your palm.",
+
+  "tabCalculator": "Calculator",
+  "tabRecords": "Records",
+  "tabCustomers": "Customers",
+  "tabDashboard": "Dashboard",
+
+  "saveBtnLabel": "SAVE — ₹{amount}",
+  "@saveBtnLabel": {
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+
+  "saveSheetTitle": "Save this record",
+  "saveSheetSubtitle": "Total",
+  "fieldItemName": "Item / product name *",
+  "fieldItemHint": "e.g. Chawal 5kg, Soap, Biscuit...",
+  "fieldCustomer": "Customer name (optional)",
+  "fieldCustomerHint": "e.g. Ramesh, Geeta...",
+  "fieldNotes": "Notes (optional)",
+  "fieldNotesHint": "e.g. home delivery, paid by card...",
+  "typeSale": "Sale",
+  "typeExpense": "Expense",
+  "typeCredit": "Credit",
+  "btnCancel": "Cancel",
+  "btnSaveRecord": "Save Record",
+  "validationItemRequired": "Please enter an item name",
+
+  "recordsSavedSuccess": "₹{amount} saved! Today: ₹{todayTotal}",
+  "@recordsSavedSuccess": {
+    "placeholders": {
+      "amount": { "type": "String" },
+      "todayTotal": { "type": "String" }
+    }
+  },
+
+  "recordsPageTitle": "Records",
+  "recordsEmpty": "No records yet.\nMake a sale and tap Save!",
+  "recordsSearchHint": "Search item or customer...",
+  "recordsExport": "Export",
+
+  "sectionToday": "Today",
+  "sectionYesterday": "Yesterday",
+  "sectionThisWeek": "This Week",
+  "sectionOlder": "Older",
+
+  "totalLabel": "Total",
+  "deletedRecord": "Record deleted",
+  "undoDelete": "Undo",
+
+  "settingsTitle": "Settings",
+  "settingsLanguage": "Language",
+  "settingsFontSize": "Text size",
+  "settingsAbout": "About Bikri-Book",
+
+  "comingSoon": "Coming soon!",
+  "placeholderScreen": "This feature is coming in the next update.",
+
+  "errorDivByZero": "Can't divide by zero",
+  "errorInvalidExpr": "Invalid expression"
+}

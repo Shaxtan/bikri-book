@@ -1,0 +1,66 @@
+{
+  "@@locale": "hi",
+
+  "appName": "बिक्री-बुक",
+  "tagline": "दुकान का हिसाब, मुठ्ठी में।",
+
+  "tabCalculator": "कैलकुलेटर",
+  "tabRecords": "रिकॉर्ड",
+  "tabCustomers": "कस्टमर",
+  "tabDashboard": "डैशबोर्ड",
+
+  "saveBtnLabel": "SAVE KAR — ₹{amount}",
+  "@saveBtnLabel": {
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+
+  "saveSheetTitle": "रिकॉर्ड सेव करो",
+  "saveSheetSubtitle": "कुल",
+  "fieldItemName": "चीज़ / सामान का नाम *",
+  "fieldItemHint": "जैसे चावल 5kg, साबुन, बिस्किट...",
+  "fieldCustomer": "ग्राहक का नाम (ज़रूरी नहीं)",
+  "fieldCustomerHint": "जैसे रमेश, गीता...",
+  "fieldNotes": "नोट (ज़रूरी नहीं)",
+  "fieldNotesHint": "जैसे होम डिलीवरी, कार्ड से पेमेंट...",
+  "typeSale": "बिक्री",
+  "typeExpense": "खर्चा",
+  "typeCredit": "उधारी",
+  "btnCancel": "रद्द करो",
+  "btnSaveRecord": "सेव करो",
+  "validationItemRequired": "सामान का नाम डालें",
+
+  "recordsSavedSuccess": "₹{amount} सेव हुए! आज: ₹{todayTotal}",
+  "@recordsSavedSuccess": {
+    "placeholders": {
+      "amount": { "type": "String" },
+      "todayTotal": { "type": "String" }
+    }
+  },
+
+  "recordsPageTitle": "रिकॉर्ड",
+  "recordsEmpty": "अभी कोई रिकॉर्ड नहीं।\nबिक्री करो और Save दबाओ!",
+  "recordsSearchHint": "सामान या ग्राहक खोजो...",
+  "recordsExport": "एक्सपोर्ट",
+
+  "sectionToday": "आज",
+  "sectionYesterday": "कल",
+  "sectionThisWeek": "इस हफ्ते",
+  "sectionOlder": "पहले का",
+
+  "totalLabel": "कुल",
+  "deletedRecord": "रिकॉर्ड डिलीट हुआ",
+  "undoDelete": "वापस लाओ",
+
+  "settingsTitle": "सेटिंग्स",
+  "settingsLanguage": "भाषा",
+  "settingsFontSize": "टेक्स्ट साइज़",
+  "settingsAbout": "बिक्री-बुक के बारे में",
+
+  "comingSoon": "जल्द आ रहा है!",
+  "placeholderScreen": "यह फीचर अगले अपडेट में आएगा।",
+
+  "errorDivByZero": "शून्य से भाग नहीं होता",
+  "errorInvalidExpr": "गलत हिसाब"
+}
