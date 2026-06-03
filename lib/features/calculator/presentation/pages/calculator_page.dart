@@ -59,8 +59,7 @@ class _CalculatorPageState extends ConsumerState<CalculatorPage> {
     final saved =
         await SaveBottomSheet.show(context, calc.saveAmount);
     if (saved && context.mounted) {
-      final newTotal =
-          ref.read(transactionProvider).todayTotal;
+      final newTotal = ref.read(transactionProvider).todayTotal;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -83,7 +82,7 @@ class _CalculatorPageState extends ConsumerState<CalculatorPage> {
 
     return Column(
       children: [
-        // ── Display (green area) ───────────────────────────────
+        // ── Display (white area) ───────────────────────────────
         Expanded(
           flex: 38,
           child: _Display(
@@ -93,7 +92,13 @@ class _CalculatorPageState extends ConsumerState<CalculatorPage> {
           ),
         ),
 
-        // ── Keypad (white/grey area) ───────────────────────────
+        // ── Thin divider ───────────────────────────────────────
+        Container(
+          height: 1.5,
+          color: AppColors.primaryPale,
+        ),
+
+        // ── Keypad (light grey area) ───────────────────────────
         Expanded(
           flex: 62,
           child: Container(
@@ -120,130 +125,82 @@ class _Display extends StatelessWidget {
   final TextEditingController exprCtrl;
   final VoidCallback onSave;
 
-  double _resultSize(String val, bool big) {
-    final len = val.length;
-    if (big) {
-      if (len <= 6) return 52;
-      if (len <= 9) return 40;
-      if (len <= 12) return 30;
-      return 24;
-    }
-    if (len <= 8) return 30;
-    if (len <= 12) return 24;
-    return 20;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final hasResult = calc.liveResult.isNotEmpty;
-    final isFinal = calc.justCalculated;
-
     return Container(
-      color: AppColors.calcBackground,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // ── Expression — full expression with cursor ─────────
+          // ── Full expression with cursor ──────────────────────
           Expanded(
             child: TextField(
-  controller: exprCtrl,
-  readOnly: true,
-  showCursor: true,
-  enableInteractiveSelection: true,
-  textAlign: TextAlign.right,
-  maxLines: null,
-  expands: true,
-  style: GoogleFonts.robotoMono(
-    color: isFinal
-        ? Colors.white.withOpacity(0.6)
-        : Colors.white,
-    fontSize: 24,
-    height: 1.4,
-  ),
-  decoration: InputDecoration(
-    border: InputBorder.none,
-    isDense: true,
-    contentPadding: EdgeInsets.zero,
-    filled: false,                        // ← ADD THIS LINE
-    hintText: '0',
-    hintStyle: GoogleFonts.robotoMono(
-      color: Colors.white.withOpacity(0.35),
-      fontSize: 24,
-    ),
-  ),
-),
-          ),
-
-          // ── Live result / final answer ───────────────────────
-          if (hasResult) ...[
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  '= ',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.45),
-                    fontSize: isFinal ? 28 : 20,
-                    fontFamily: 'RobotoMono',
-                  ),
-                ),
-                Flexible(
-                  child: Text(
-                    calc.liveResult,
-                    style: GoogleFonts.robotoMono(
-                      color: isFinal
-                          ? Colors.white
-                          : Colors.white.withOpacity(0.65),
-                      fontSize: _resultSize(
-                          calc.liveResult, isFinal),
-                      fontWeight: isFinal
-                          ? FontWeight.w400
-                          : FontWeight.w300,
-                    ),
-                    textAlign: TextAlign.right,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ],
-
-          const SizedBox(height: 10),
-
-          // ── Save button ─────────────────────────────────────
-          AnimatedOpacity(
-            opacity: calc.canSave ? 1.0 : 0.38,
-            duration: const Duration(milliseconds: 200),
-            child: SizedBox(
-              width: double.infinity,
-              height: 46,
-              child: ElevatedButton.icon(
-                onPressed: calc.canSave ? onSave : null,
-                icon: const Icon(Icons.save_outlined, size: 18),
-                label: Text(
-                  calc.canSave
-                      ? 'SAVE KAR  —  ₹${CurrencyFormatter.formatCompact(calc.saveAmount)}'
-                      : 'Calculate karo phir save karo',
-                  style: GoogleFonts.notoSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.calcButtonEq,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
+              controller: exprCtrl,
+              readOnly: true,
+              showCursor: true,
+              enableInteractiveSelection: true,
+              textAlign: TextAlign.right,
+              maxLines: null,
+              expands: true,
+              style: GoogleFonts.robotoMono(
+                color: AppColors.textPrimary,
+                fontSize: 26,
+                height: 1.4,
+              ),
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+                filled: false,
+                hintText: '0',
+                hintStyle: GoogleFonts.robotoMono(
+                  color: AppColors.textTertiary,
+                  fontSize: 26,
                 ),
               ),
             ),
           ),
+
+          const SizedBox(height: 12),
+
+          // ── Save button — result shown here only ─────────────
+          SizedBox(
+  width: double.infinity,
+  height: 50,
+  child: ElevatedButton.icon(
+    onPressed: calc.canSave ? onSave : null,
+    icon: Icon(
+      calc.canSave
+          ? Icons.save_outlined
+          : Icons.calculate_outlined,
+      size: 18,
+    ),
+    label: Text(
+      calc.canSave
+          ? 'SAVE KAR  —  ₹${CurrencyFormatter.formatCompact(calc.saveAmount)}'
+          : 'Calculate karo phir save karo',
+      style: GoogleFonts.notoSans(
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.3,
+      ),
+    ),
+    style: ElevatedButton.styleFrom(
+  backgroundColor: calc.canSave
+      ? AppColors.primary
+      : AppColors.primaryPale,
+  foregroundColor: calc.canSave
+      ? Colors.white
+      : AppColors.primary,
+  elevation: 0,
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(12),
+  ),
+),
+    ),
+  ),
+// ),
         ],
       ),
     );
