@@ -10,6 +10,7 @@ import '../../../transactions/presentation/pages/records_page.dart';
 import '../../../transactions/presentation/providers/transaction_provider.dart';
 import '../../../customers/presentation/pages/customers_page.dart';
 import '../../../dashboard/presentation/pages/dashboard_page.dart';
+import '../../../profile/presentation/pages/profile_page.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -62,10 +63,10 @@ class _HomePageState extends ConsumerState<HomePage>
         child: Column(
           children: [
 
-            // ── Row 1: App heading + today total + sync ─────────
+            // ── Row 1: App heading + today total + profile ───────
             Container(
               color: AppColors.primary,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
               child: Row(
                 children: [
                   // App name
@@ -78,6 +79,7 @@ class _HomePageState extends ConsumerState<HomePage>
                     ),
                   ),
                   const SizedBox(width: 10),
+
                   // Today total
                   Expanded(
                     child: Text(
@@ -88,7 +90,8 @@ class _HomePageState extends ConsumerState<HomePage>
                       ),
                     ),
                   ),
-                  // Sync status
+
+                  // Sync status chip
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 4),
@@ -100,7 +103,9 @@ class _HomePageState extends ConsumerState<HomePage>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          isGuest ? Icons.cloud_off : Icons.cloud_done,
+                          isGuest
+                              ? Icons.cloud_off
+                              : Icons.cloud_done,
                           color: Colors.white,
                           size: 11,
                         ),
@@ -115,6 +120,25 @@ class _HomePageState extends ConsumerState<HomePage>
                         ),
                       ],
                     ),
+                  ),
+
+                  const SizedBox(width: 6),
+
+                  // Profile button
+                  IconButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ProfilePage()),
+                    ),
+                    icon: const Icon(
+                      Icons.account_circle_outlined,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                    tooltip: 'Profile',
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
                   ),
                 ],
               ),
