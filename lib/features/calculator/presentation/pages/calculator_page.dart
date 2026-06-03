@@ -5,102 +5,242 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../providers/calculator_provider.dart';
 import '../widgets/calc_button_widget.dart';
-import '../widgets/calc_display_widget.dart';
 import '../widgets/save_bottom_sheet.dart';
 import '../../../transactions/presentation/providers/transaction_provider.dart';
 
-class CalculatorPage extends ConsumerWidget {
+class CalculatorPage extends ConsumerStatefulWidget {
   const CalculatorPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final calc = ref.watch(calculatorProvider);
-    final todayTotal =
-        ref.watch(transactionProvider.select((s) => s.todayTotal));
+  ConsumerState<CalculatorPage> createState() =>
+      _CalculatorPageState();
+}
 
-    return Scaffold(
-      backgroundColor: AppColors.calcBackground,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ── App bar area (inside green) ──────────────────
-            _AppBarArea(todayTotal: todayTotal),
+class _CalculatorPageState extends ConsumerState<CalculatorPage> {
+  late final TextEditingController _exprCtrl;
+  bool _syncing = false;
 
-            // ── Calculator display ───────────────────────────
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: CalcDisplayWidget(
-                expression: calc.expressionDisplay,
-                displayValue: calc.displayValue,
-              ),
-            ),
+  @override
+  void initState() {
+    super.initState();
+    _exprCtrl = TextEditingController();
+    _exprCtrl.addListener(() {
+      if (_syncing) return;
+      final pos = _exprCtrl.selection.baseOffset;
+      if (pos >= 0) {
+        ref.read(calculatorProvider.notifier).setCursorPos(pos);
+      }
+    });
+  }
 
-            // ── Button grid (white background below) ─────────
-            Expanded(
-              child: Container(
-                color: AppColors.background,
-                padding: const EdgeInsets.fromLTRB(8, 10, 8, 0),
-                child: _ButtonGrid(calc: calc, ref: ref),
-              ),
-            ),
+  @override
+  void dispose() {
+    _exprCtrl.dispose();
+    super.dispose();
+  }
 
-            // ── Save bar ──────────────────────────────────────
-            _SaveBar(calc: calc, ref: ref),
-          ],
+  void _sync(CalculatorState calc) {
+    final text = calc.expression;
+    final cursor = calc.cursorPos.clamp(0, text.length);
+    if (_exprCtrl.text != text ||
+        _exprCtrl.selection.baseOffset != cursor) {
+      _syncing = true;
+      _exprCtrl.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: cursor),
+      );
+      _syncing = false;
+    }
+  }
+
+  Future<void> _handleSave(
+      BuildContext context, CalculatorState calc) async {
+    if (!calc.canSave) return;
+    final saved =
+        await SaveBottomSheet.show(context, calc.saveAmount);
+    if (saved && context.mounted) {
+      final newTotal =
+          ref.read(transactionProvider).todayTotal;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '₹${CurrencyFormatter.formatCompact(calc.saveAmount)} saved! '
+            'Aaj: ₹${CurrencyFormatter.formatCompact(newTotal)}',
+          ),
+          duration: const Duration(seconds: 3),
         ),
-      ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final calc = ref.watch(calculatorProvider);
+    final n = ref.read(calculatorProvider.notifier);
+
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _sync(calc));
+
+    return Column(
+      children: [
+        // ── Display (green area) ───────────────────────────────
+        Expanded(
+          flex: 38,
+          child: _Display(
+            calc: calc,
+            exprCtrl: _exprCtrl,
+            onSave: () => _handleSave(context, calc),
+          ),
+        ),
+
+        // ── Keypad (white/grey area) ───────────────────────────
+        Expanded(
+          flex: 62,
+          child: Container(
+            color: AppColors.background,
+            padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+            child: _Keypad(n: n),
+          ),
+        ),
+      ],
     );
   }
 }
 
-// ── App bar ───────────────────────────────────────────────────────────────────
+// ── Display ───────────────────────────────────────────────────────────────────
 
-class _AppBarArea extends StatelessWidget {
-  const _AppBarArea({required this.todayTotal});
-  final double todayTotal;
+class _Display extends StatelessWidget {
+  const _Display({
+    required this.calc,
+    required this.exprCtrl,
+    required this.onSave,
+  });
+
+  final CalculatorState calc;
+  final TextEditingController exprCtrl;
+  final VoidCallback onSave;
+
+  double _resultSize(String val, bool big) {
+    final len = val.length;
+    if (big) {
+      if (len <= 6) return 52;
+      if (len <= 9) return 40;
+      if (len <= 12) return 30;
+      return 24;
+    }
+    if (len <= 8) return 30;
+    if (len <= 12) return 24;
+    return 20;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final hasResult = calc.liveResult.isNotEmpty;
+    final isFinal = calc.justCalculated;
+
     return Container(
       color: AppColors.calcBackground,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Bikri-Book',
-                style: GoogleFonts.notoSans(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-              Text(
-                'Aaj ki Bikri: ${CurrencyFormatter.format(todayTotal)}',
-                style: GoogleFonts.notoSans(
-                  fontSize: 13,
-                  color: Colors.white.withOpacity(0.85),
-                ),
-              ),
-            ],
+          // ── Expression — full expression with cursor ─────────
+          Expanded(
+            child: TextField(
+  controller: exprCtrl,
+  readOnly: true,
+  showCursor: true,
+  enableInteractiveSelection: true,
+  textAlign: TextAlign.right,
+  maxLines: null,
+  expands: true,
+  style: GoogleFonts.robotoMono(
+    color: isFinal
+        ? Colors.white.withOpacity(0.6)
+        : Colors.white,
+    fontSize: 24,
+    height: 1.4,
+  ),
+  decoration: InputDecoration(
+    border: InputBorder.none,
+    isDense: true,
+    contentPadding: EdgeInsets.zero,
+    filled: false,                        // ← ADD THIS LINE
+    hintText: '0',
+    hintStyle: GoogleFonts.robotoMono(
+      color: Colors.white.withOpacity(0.35),
+      fontSize: 24,
+    ),
+  ),
+),
           ),
-          const Spacer(),
-          // Sync indicator — Phase 2
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.18),
-              borderRadius: BorderRadius.circular(12),
+
+          // ── Live result / final answer ───────────────────────
+          if (hasResult) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  '= ',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.45),
+                    fontSize: isFinal ? 28 : 20,
+                    fontFamily: 'RobotoMono',
+                  ),
+                ),
+                Flexible(
+                  child: Text(
+                    calc.liveResult,
+                    style: GoogleFonts.robotoMono(
+                      color: isFinal
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.65),
+                      fontSize: _resultSize(
+                          calc.liveResult, isFinal),
+                      fontWeight: isFinal
+                          ? FontWeight.w400
+                          : FontWeight.w300,
+                    ),
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-            child: Text(
-              'Offline',
-              style: GoogleFonts.notoSans(
-                fontSize: 11,
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
+          ],
+
+          const SizedBox(height: 10),
+
+          // ── Save button ─────────────────────────────────────
+          AnimatedOpacity(
+            opacity: calc.canSave ? 1.0 : 0.38,
+            duration: const Duration(milliseconds: 200),
+            child: SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: ElevatedButton.icon(
+                onPressed: calc.canSave ? onSave : null,
+                icon: const Icon(Icons.save_outlined, size: 18),
+                label: Text(
+                  calc.canSave
+                      ? 'SAVE KAR  —  ₹${CurrencyFormatter.formatCompact(calc.saveAmount)}'
+                      : 'Calculate karo phir save karo',
+                  style: GoogleFonts.notoSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.calcButtonEq,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
               ),
             ),
           ),
@@ -110,180 +250,99 @@ class _AppBarArea extends StatelessWidget {
   }
 }
 
-// ── Button grid ───────────────────────────────────────────────────────────────
+// ── Keypad ────────────────────────────────────────────────────────────────────
 
-class _ButtonGrid extends StatelessWidget {
-  const _ButtonGrid({required this.calc, required this.ref});
-  final CalculatorState calc;
-  final WidgetRef ref;
-
-  void _press(VoidCallback fn) => fn();
-
-  CalculatorNotifier get _n => ref.read(calculatorProvider.notifier);
+class _Keypad extends StatelessWidget {
+  const _Keypad({required this.n});
+  final CalculatorNotifier n;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Row 1: AC  ±  %  ÷
         Expanded(
           child: Row(children: [
             CalcButton(
-              label: 'AC',
-              style: CalcButtonStyle.function,
-              onTap: () => _n.pressAC(),
-              fontSize: 20,
-            ),
+                label: 'AC',
+                style: CalcButtonStyle.function,
+                onTap: n.pressAC,
+                fontSize: 18),
             CalcButton(
-              label: '±',
-              style: CalcButtonStyle.function,
-              onTap: () => _n.pressToggleSign(),
-            ),
+                label: '⌫',
+                style: CalcButtonStyle.function,
+                onTap: n.pressBackspace,
+                fontSize: 20),
             CalcButton(
-              label: '%',
-              style: CalcButtonStyle.function,
-              onTap: () => _n.pressPercent(),
-            ),
+                label: '%',
+                style: CalcButtonStyle.function,
+                onTap: n.pressPercent),
             CalcButton(
-              label: '÷',
-              style: CalcButtonStyle.operator,
-              onTap: () => _n.pressOperator('÷'),
-              fontSize: 26,
-            ),
+                label: '÷',
+                style: CalcButtonStyle.operator,
+                onTap: () => n.pressOperator('÷'),
+                fontSize: 26),
           ]),
         ),
-        // Row 2: 7  8  9  ×
         Expanded(
           child: Row(children: [
-            CalcButton(label: '7', onTap: () => _n.pressDigit('7')),
-            CalcButton(label: '8', onTap: () => _n.pressDigit('8')),
-            CalcButton(label: '9', onTap: () => _n.pressDigit('9')),
             CalcButton(
-              label: '×',
-              style: CalcButtonStyle.operator,
-              onTap: () => _n.pressOperator('×'),
-              fontSize: 26,
-            ),
+                label: '7', onTap: () => n.pressDigit('7')),
+            CalcButton(
+                label: '8', onTap: () => n.pressDigit('8')),
+            CalcButton(
+                label: '9', onTap: () => n.pressDigit('9')),
+            CalcButton(
+                label: '×',
+                style: CalcButtonStyle.operator,
+                onTap: () => n.pressOperator('×'),
+                fontSize: 26),
           ]),
         ),
-        // Row 3: 4  5  6  −
         Expanded(
           child: Row(children: [
-            CalcButton(label: '4', onTap: () => _n.pressDigit('4')),
-            CalcButton(label: '5', onTap: () => _n.pressDigit('5')),
-            CalcButton(label: '6', onTap: () => _n.pressDigit('6')),
             CalcButton(
-              label: '−',
-              style: CalcButtonStyle.operator,
-              onTap: () => _n.pressOperator('−'),
-              fontSize: 26,
-            ),
+                label: '4', onTap: () => n.pressDigit('4')),
+            CalcButton(
+                label: '5', onTap: () => n.pressDigit('5')),
+            CalcButton(
+                label: '6', onTap: () => n.pressDigit('6')),
+            CalcButton(
+                label: '−',
+                style: CalcButtonStyle.operator,
+                onTap: () => n.pressOperator('−'),
+                fontSize: 26),
           ]),
         ),
-        // Row 4: 1  2  3  +
         Expanded(
           child: Row(children: [
-            CalcButton(label: '1', onTap: () => _n.pressDigit('1')),
-            CalcButton(label: '2', onTap: () => _n.pressDigit('2')),
-            CalcButton(label: '3', onTap: () => _n.pressDigit('3')),
             CalcButton(
-              label: '+',
-              style: CalcButtonStyle.operator,
-              onTap: () => _n.pressOperator('+'),
-              fontSize: 26,
-            ),
+                label: '1', onTap: () => n.pressDigit('1')),
+            CalcButton(
+                label: '2', onTap: () => n.pressDigit('2')),
+            CalcButton(
+                label: '3', onTap: () => n.pressDigit('3')),
+            CalcButton(
+                label: '+',
+                style: CalcButtonStyle.operator,
+                onTap: () => n.pressOperator('+'),
+                fontSize: 26),
           ]),
         ),
-        // Row 5: 0(wide)  .  =
         Expanded(
           child: Row(children: [
             CalcButton(
-              label: '0',
-              onTap: () => _n.pressDigit('0'),
-              flex: 2,
-            ),
-            CalcButton(label: '.', onTap: () => _n.pressDecimal()),
+                label: '0',
+                onTap: () => n.pressDigit('0'),
+                flex: 2),
+            CalcButton(label: '.', onTap: n.pressDecimal),
             CalcButton(
-              label: '=',
-              style: CalcButtonStyle.equals,
-              onTap: () => _n.pressEquals(),
-            ),
+                label: '=',
+                style: CalcButtonStyle.equals,
+                onTap: n.pressEquals),
           ]),
         ),
         const SizedBox(height: 4),
       ],
-    );
-  }
-}
-
-// ── Save bar ──────────────────────────────────────────────────────────────────
-
-class _SaveBar extends ConsumerWidget {
-  const _SaveBar({required this.calc, required this.ref});
-  final CalculatorState calc;
-  final WidgetRef ref;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final canSave = calc.canSave;
-    final todayTotal =
-        ref.watch(transactionProvider.select((s) => s.todayTotal));
-
-    return Container(
-      color: AppColors.surface,
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          width: double.infinity,
-          height: 54,
-          child: AnimatedOpacity(
-            opacity: canSave ? 1.0 : 0.5,
-            duration: const Duration(milliseconds: 200),
-            child: ElevatedButton.icon(
-              onPressed: canSave
-                  ? () async {
-                      final amount = calc.saveAmount;
-                      final saved =
-                          await SaveBottomSheet.show(context, amount);
-                      if (saved && context.mounted) {
-                        // Refresh today total is handled by the provider
-                        final newTotal = ref.read(transactionProvider).todayTotal;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              '₹${CurrencyFormatter.formatCompact(amount)} saved! '
-                              'Aaj: ₹${CurrencyFormatter.formatCompact(newTotal)}',
-                            ),
-                            action: SnackBarAction(
-                              label: 'Records',
-                              onPressed: () {
-                                // Navigate to records tab — handled by home page
-                                DefaultTabController.maybeOf(context)
-                                    ?.animateTo(1);
-                              },
-                            ),
-                            duration: const Duration(seconds: 3),
-                          ),
-                        );
-                      }
-                    }
-                  : null,
-              icon: const Icon(Icons.save_outlined, size: 20),
-              label: Text(
-                canSave
-                    ? 'SAVE KAR  —  ₹${CurrencyFormatter.formatCompact(calc.saveAmount)}'
-                    : 'Calculate something first',
-                style: GoogleFonts.notoSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

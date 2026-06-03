@@ -1,206 +1,256 @@
-/// Pure Dart calculator engine.
-/// No Flutter dependencies — fully unit-testable in isolation.
-///
-/// Behaviour mirrors the standard Android (AOSP) calculator:
-///   • Operator chain:  120 [+] 250 [+] 80 [=]  → 450
-///   • Repeat equals:  [=] again repeats the last operation
-///   • Percentage:     20 [%] → 0.2
-///   • The expression line shows what was typed; the display shows the current value.
 class CalculatorEngine {
-  // ── Internal state ────────────────────────────────────────────
-  double _operand1 = 0;
-  double _lastOperand = 0;    // for repeat-equals
-  String? _pendingOp;         // + − × ÷
-  String? _lastOp;            // for repeat-equals
-  String _currentInput = '0';
-  String _expressionDisplay = '';
-  bool _newOperandExpected = false; // after pressing an operator or =
-  bool _justCalculated = false;
+  String _expr = '';
   double? _result;
+  bool _justCalculated = false;
+  int _cursorPos = 0;
 
-  // ── Public getters ────────────────────────────────────────────
-
-  /// The main large number shown on screen.
-  String get displayValue => _currentInput;
-
-  /// The small expression shown above the main display.
-  /// Shows the running expression while typing; shows "expr =" after [=].
-  String get expressionDisplay => _expressionDisplay;
-
-  /// The numeric result of the last completed calculation (null if none yet).
+  String get expression => _expr;
+  int get cursorPos => _cursorPos;
+  bool get justCalculated => _justCalculated;
   double? get result => _justCalculated ? _result : null;
 
-  /// True once [=] has been pressed; resets on next digit or operator input.
-  bool get justCalculated => _justCalculated;
-
-  /// The raw double of whatever is currently on the display.
-  double get currentValue => double.tryParse(_currentInput) ?? 0;
-
-  // ── Digit & decimal input ─────────────────────────────────────
-
-  void pressDigit(String digit) {
-    assert(digit.length == 1 && '0123456789'.contains(digit));
-
-    if (_justCalculated || _newOperandExpected) {
-      _currentInput = digit == '0' ? '0' : digit;
-      _justCalculated = false;
-      _newOperandExpected = false;
-    } else {
-      if (_currentInput == '0') {
-        _currentInput = digit;
-      } else if (_currentInput == '-0') {
-        _currentInput = '-$digit';
-      } else if (_currentInput.replaceAll('-', '').replaceAll('.', '').length < 12) {
-        _currentInput += digit;
-      }
-    }
+  bool get canSave {
+    if (_justCalculated) return (_result ?? 0) != 0;
+    final lr = liveResult;
+    if (lr.isEmpty) return false;
+    return (double.tryParse(lr) ?? 0) != 0;
   }
 
-  void pressDecimal() {
-    if (_justCalculated || _newOperandExpected) {
-      _currentInput = '0.';
+  double get saveAmount {
+    if (_justCalculated && _result != null) return _result!;
+    return double.tryParse(liveResult) ?? 0;
+  }
+
+  String get exportLabel =>
+      _justCalculated ? '$_expr = ${_fmt(_result!)}' : _expr;
+
+  /// Live running total shown below expression as user types
+  String get liveResult {
+    if (_justCalculated) return _fmt(_result!);
+    if (_expr.trim().isEmpty) return '';
+    // Remove trailing incomplete operator before evaluating
+    final cleaned = _expr
+        .trim()
+        .replaceAll(RegExp(r'\s+[+\-×÷]\s*$'), '')
+        .trim();
+    if (cleaned.isEmpty) return '';
+    try {
+      final r = _evaluateExpression(cleaned);
+      if (!r.isNaN && !r.isInfinite) return _fmt(r);
+    } catch (_) {}
+    return '';
+  }
+
+  // ── Insert at cursor ──────────────────────────────────────────
+
+  void insertAtCursor(String char) {
+    if (_justCalculated) {
+      _expr = char;
+      _cursorPos = 1;
+      _result = null;
       _justCalculated = false;
-      _newOperandExpected = false;
       return;
     }
-    if (!_currentInput.contains('.')) {
-      _currentInput += '.';
-    }
+    _expr =
+        _expr.substring(0, _cursorPos) + char + _expr.substring(_cursorPos);
+    _cursorPos += char.length;
   }
 
-  // ── Operator input ────────────────────────────────────────────
+  void insertOperatorAtCursor(String op) {
+    if (_justCalculated) {
+      final res = _fmt(_result!);
+      _expr = '$res $op ';
+      _cursorPos = _expr.length;
+      _result = null;
+      _justCalculated = false;
+      return;
+    }
+    if (_expr.isEmpty) return;
 
-  void pressOperator(String op) {
-    assert(['+', '−', '×', '÷'].contains(op));
+    final before = _expr.substring(0, _cursorPos);
+    final after = _expr.substring(_cursorPos);
+    final trailingOp = RegExp(r'\s+[+\-×÷]\s*$');
+    final cleaned = trailingOp.hasMatch(before)
+        ? before.replaceFirst(trailingOp, '')
+        : before;
+    final token = ' $op ';
+    _expr = cleaned + token + after;
+    _cursorPos = cleaned.length + token.length;
+  }
 
-    final current = double.tryParse(_currentInput) ?? 0;
+  void setCursorPos(int pos) {
+    _cursorPos = pos.clamp(0, _expr.length);
+  }
 
-    if (_pendingOp != null && !_newOperandExpected) {
-      // Chain: evaluate the pending op first, then set new pending op
-      final r = _applyOp(_operand1, _pendingOp!, current);
-      _result = r;
-      _operand1 = r;
-      _expressionDisplay = '${_expressionDisplay}$_currentInput $op ';
-      _currentInput = _formatResult(r);
+  // ── Backspace ─────────────────────────────────────────────────
+
+  void backspace() {
+    if (_justCalculated) {
+      _expr = '';
+      _cursorPos = 0;
+      _result = null;
+      _justCalculated = false;
+      return;
+    }
+    if (_expr.isEmpty || _cursorPos == 0) return;
+
+    final before = _expr.substring(0, _cursorPos);
+    final after = _expr.substring(_cursorPos);
+
+    // Remove entire " OP " chunk as one unit
+    final opChunk = RegExp(r' [+\-×÷] $');
+    if (opChunk.hasMatch(before)) {
+      final match = opChunk.firstMatch(before)!;
+      _expr = before.substring(0, match.start) + after;
+      _cursorPos = match.start;
     } else {
-      _operand1 = current;
-      _expressionDisplay = '$_currentInput $op ';
+      _expr = before.substring(0, before.length - 1) + after;
+      _cursorPos -= 1;
     }
-
-    _pendingOp = op;
-    _newOperandExpected = true;
-    _justCalculated = false;
   }
 
-  // ── Equals ────────────────────────────────────────────────────
+  // ── Special ops ───────────────────────────────────────────────
+
+  void pressPercent() {
+    final last = _lastNumber();
+    if (last.isEmpty) return;
+    final val = double.tryParse(last);
+    if (val == null) return;
+    final pct = _fmt(val / 100);
+    final idx = _expr.lastIndexOf(last);
+    if (idx >= 0) {
+      _expr =
+          _expr.substring(0, idx) + pct + _expr.substring(idx + last.length);
+      _cursorPos = (idx + pct.length).clamp(0, _expr.length);
+    }
+  }
+
+  void pressToggleSign() {
+    final last = _lastNumber();
+    if (last.isEmpty || last == '0') return;
+    final idx = _expr.lastIndexOf(last);
+    if (idx < 0) return;
+    final toggled =
+        last.startsWith('-') ? last.substring(1) : '-$last';
+    _expr = _expr.substring(0, idx) +
+        toggled +
+        _expr.substring(idx + last.length);
+    _cursorPos = (idx + toggled.length).clamp(0, _expr.length);
+  }
 
   void pressEquals() {
-    final current = double.tryParse(_currentInput) ?? 0;
-
-    if (_justCalculated) {
-      // Repeat last operation
-      if (_lastOp != null) {
-        final r = _applyOp(currentValue, _lastOp!, _lastOperand);
+    if (_expr.trim().isEmpty) return;
+    if (_justCalculated) return;
+    try {
+      final r = _evaluateExpression(_expr.trim());
+      if (!r.isNaN && !r.isInfinite) {
         _result = r;
-        _expressionDisplay = '$_currentInput ${_lastOp!} ${_formatResult(_lastOperand)} =';
-        _currentInput = _formatResult(r);
-        _operand1 = r;
+        _justCalculated = true;
+        _cursorPos = _expr.length;
       }
-      return;
-    }
-
-    if (_pendingOp == null) return;
-
-    _lastOp = _pendingOp;
-    _lastOperand = current;
-
-    final r = _applyOp(_operand1, _pendingOp!, current);
-    _result = r;
-    _expressionDisplay = '${_expressionDisplay}$_currentInput =';
-    _currentInput = _formatResult(r);
-    _pendingOp = null;
-    _newOperandExpected = false;
-    _justCalculated = true;
+    } catch (_) {}
   }
 
-  // ── Special operations ────────────────────────────────────────
-
-  /// All-Clear: resets everything.
   void pressAC() {
-    _operand1 = 0;
-    _lastOperand = 0;
-    _pendingOp = null;
-    _lastOp = null;
-    _currentInput = '0';
-    _expressionDisplay = '';
-    _newOperandExpected = false;
-    _justCalculated = false;
+    _expr = '';
+    _cursorPos = 0;
     _result = null;
-  }
-
-  /// Delete last character (backspace). After [=], behaves like AC.
-  void pressDelete() {
-    if (_justCalculated) {
-      pressAC();
-      return;
-    }
-    if (_newOperandExpected) return; // nothing typed yet after operator
-    if (_currentInput.length > 1) {
-      _currentInput = _currentInput.substring(0, _currentInput.length - 1);
-      // If only '-' is left, clear to '0'
-      if (_currentInput == '-') _currentInput = '0';
-    } else {
-      _currentInput = '0';
-    }
-  }
-
-  /// Converts current value to percentage (divides by 100).
-  void pressPercent() {
-    final val = double.tryParse(_currentInput);
-    if (val == null) return;
-    _currentInput = _formatResult(val / 100);
     _justCalculated = false;
   }
 
-  /// Toggles the sign of the current input.
-  void pressToggleSign() {
-    if (_currentInput == '0') return;
-    if (_currentInput.startsWith('-')) {
-      _currentInput = _currentInput.substring(1);
-    } else {
-      _currentInput = '-$_currentInput';
-    }
+  // ── Expression evaluator ──────────────────────────────────────
+
+  double _evaluateExpression(String expr) {
+    expr = expr
+        .replaceAll('×', '*')
+        .replaceAll('÷', '/')
+        .replaceAll('−', '-');
+    final tokens = _tokenize(expr);
+    if (tokens.isEmpty) return 0;
+    return _evalTokens(tokens);
   }
 
-  // ── Helpers ───────────────────────────────────────────────────
-
-  double _applyOp(double a, String op, double b) {
-    switch (op) {
-      case '+': return a + b;
-      case '−': return a - b;
-      case '×': return a * b;
-      case '÷': return b == 0 ? double.nan : a / b;
-      default: return b;
+  List<dynamic> _tokenize(String expr) {
+    final result = <dynamic>[];
+    int i = 0;
+    while (i < expr.length) {
+      final ch = expr[i];
+      if (ch == ' ') {
+        i++;
+        continue;
+      }
+      if (RegExp(r'[0-9.]').hasMatch(ch)) {
+        var num = '';
+        while (
+            i < expr.length && RegExp(r'[0-9.]').hasMatch(expr[i])) {
+          num += expr[i++];
+        }
+        result.add(double.tryParse(num) ?? 0.0);
+      } else if (ch == '-' &&
+          (result.isEmpty || result.last is String)) {
+        var num = '-';
+        i++;
+        while (
+            i < expr.length && RegExp(r'[0-9.]').hasMatch(expr[i])) {
+          num += expr[i++];
+        }
+        result.add(double.tryParse(num) ?? 0.0);
+      } else if ('+-*/'.contains(ch)) {
+        result.add(ch);
+        i++;
+      } else {
+        i++;
+      }
     }
+    return result;
   }
 
-  String _formatResult(double n) {
+  double _evalTokens(List<dynamic> tokens) {
+    final tok = List<dynamic>.from(tokens);
+    // Pass 1: × and ÷
+    int i = 1;
+    while (i < tok.length - 1) {
+      if (tok[i] == '*' || tok[i] == '/') {
+        final a = (tok[i - 1] as num).toDouble();
+        final b = (tok[i + 1] as num).toDouble();
+        final r = tok[i] == '*'
+            ? a * b
+            : (b == 0 ? double.nan : a / b);
+        tok.replaceRange(i - 1, i + 2, [r]);
+      } else {
+        i += 2;
+      }
+    }
+    // Pass 2: + and -
+    double result = (tok[0] as num).toDouble();
+    for (int j = 1; j < tok.length - 1; j += 2) {
+      final b = (tok[j + 1] as num).toDouble();
+      if (tok[j] == '+') result += b;
+      if (tok[j] == '-') result -= b;
+    }
+    return result;
+  }
+
+  String _lastNumber() {
+    if (_expr.isEmpty) return '';
+    final parts = _expr.split(RegExp(r'\s+[+\-×÷]\s+'));
+    for (int i = parts.length - 1; i >= 0; i--) {
+      final p = parts[i].trim();
+      if (p.isNotEmpty) return p;
+    }
+    return '';
+  }
+
+  String _fmt(double n) {
     if (n.isNaN) return 'Error';
     if (n.isInfinite) return n > 0 ? '∞' : '-∞';
-    // If integer-valued, show without decimal point
     if (n == n.truncateToDouble() && n.abs() < 1e15) {
       return n.toInt().toString();
     }
-    // Strip trailing zeros after decimal
     String s = n.toStringAsFixed(8);
-    s = s.replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+    s = s
+        .replaceAll(RegExp(r'0+$'), '')
+        .replaceAll(RegExp(r'\.$'), '');
     return s;
-  }
-
-  /// Returns a human-readable export string, e.g. "120 + 250 + 80 = 450"
-  String get exportLabel {
-    if (_expressionDisplay.isEmpty) return _currentInput;
-    if (_justCalculated) return _expressionDisplay;
-    return '${_expressionDisplay.trimRight()}';
   }
 }

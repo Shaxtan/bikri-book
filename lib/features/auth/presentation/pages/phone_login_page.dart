@@ -1,5 +1,4 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -24,6 +23,7 @@ class PhoneLoginPage extends ConsumerStatefulWidget {
 class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
   final _phoneCtrl = TextEditingController();
   bool _isLoading = false;
+  bool _showPhoneInput = false;
   String _error = '';
 
   @override
@@ -31,8 +31,6 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
     _phoneCtrl.dispose();
     super.dispose();
   }
-
-  // ── Called after any successful login ─────────────────────────────────────
 
   Future<void> _afterLogin(String uid) async {
     await PreferencesService.setShopId(uid);
@@ -56,7 +54,7 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
       );
     }
 
-    // Firestore sync in background — non-blocking
+    // Firestore sync in background
     final settings = ref.read(settingsProvider);
     FirestoreSyncService.instance.saveProfile(
       shopName: settings.shopName,
@@ -64,7 +62,7 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
     );
   }
 
-  // ── Guest / Anonymous (Web) ───────────────────────────────────────────────
+  // ── Guest login ───────────────────────────────────────────────────────────
 
   Future<void> _continueAsGuest() async {
     setState(() {
@@ -78,7 +76,6 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
 
       final uid = result.user!.uid;
 
-      // Local operations only — instant
       await PreferencesService.setShopId(uid);
       ref.read(settingsProvider.notifier).setShopId(uid);
 
@@ -89,7 +86,6 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
           .read(localCustomerDsProvider)
           .migrateShopId('default_shop', uid);
 
-      // Navigate immediately — don't wait for Firestore
       final isOnboarded = await PreferencesService.isOnboarded();
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -101,7 +97,7 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
         );
       }
 
-      // Firestore in background — non-blocking
+      // Firestore in background
       final settings = ref.read(settingsProvider);
       FirestoreSyncService.instance.saveProfile(
         shopName: settings.shopName,
@@ -122,12 +118,12 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
     }
   }
 
-  // ── Phone OTP (Mobile) ────────────────────────────────────────────────────
+  // ── Phone OTP ─────────────────────────────────────────────────────────────
 
   Future<void> _sendOTP() async {
     final phone = _phoneCtrl.text.trim();
     if (phone.length < 10) {
-      setState(() => _error = 'Please enter a valid phone number');
+      setState(() => _error = 'Please enter a valid 10-digit number');
       return;
     }
     setState(() {
@@ -166,8 +162,6 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
       },
     );
   }
-
-  // ── UI ────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -218,67 +212,8 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
                   ),
                   const SizedBox(height: 48),
 
-                  if (kIsWeb) ...[
-                    // ── Web: Guest mode ─────────────────────────────────
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryPale,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: AppColors.primary, width: 0.5),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.info_outline,
-                              color: AppColors.primary, size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Phone OTP login works on the Android app. '
-                              'On web, continue in Guest mode.',
-                              style: const TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.primary,
-                                  height: 1.4),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    if (_error.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Text(_error,
-                          style: const TextStyle(
-                              color: AppColors.expense, fontSize: 13)),
-                    ],
-
-                    const Spacer(),
-                    const SizedBox(height: 48),
-
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton.icon(
-                        onPressed: _isLoading ? null : _continueAsGuest,
-                        icon: _isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                    color: Colors.white, strokeWidth: 2))
-                            : const Icon(Icons.arrow_forward),
-                        label: Text(
-                          _isLoading
-                              ? 'Signing in...'
-                              : 'Continue as Guest',
-                        ),
-                      ),
-                    ),
-                  ] else ...[
-                    // ── Mobile: Phone OTP ────────────────────────────────
+                  if (_showPhoneInput) ...[
+                    // ── Phone OTP section ──────────────────────────────────
                     Text(
                       'Enter your mobile number',
                       style: GoogleFonts.notoSans(
@@ -309,6 +244,7 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
                             controller: _phoneCtrl,
                             keyboardType: TextInputType.phone,
                             maxLength: 10,
+                            autofocus: true,
                             style: const TextStyle(fontSize: 18),
                             decoration: const InputDecoration(
                               hintText: '98765 43210',
@@ -318,13 +254,55 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
                         ),
                       ],
                     ),
-                    if (_error.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Text(_error,
-                          style: const TextStyle(
-                              color: AppColors.expense, fontSize: 13)),
-                    ],
-                    const SizedBox(height: 48),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () =>
+                          setState(() => _showPhoneInput = false),
+                      child: const Text('← Back'),
+                    ),
+                  ] else ...[
+                    // ── Main options ───────────────────────────────────────
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryPale,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: AppColors.primary, width: 0.5),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.info_outline,
+                              color: AppColors.primary, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Guest mode saves data on this device only. '
+                              'Login with phone to backup data to cloud.',
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.primary,
+                                  height: 1.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  if (_error.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(_error,
+                        style: const TextStyle(
+                            color: AppColors.expense, fontSize: 13)),
+                  ],
+
+                  const Spacer(),
+                  const SizedBox(height: 32),
+
+                  if (_showPhoneInput) ...[
+                    // Send OTP button
                     SizedBox(
                       width: double.infinity,
                       height: 56,
@@ -334,6 +312,48 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
                             ? const CircularProgressIndicator(
                                 color: Colors.white)
                             : const Text('Send OTP'),
+                      ),
+                    ),
+                  ] else ...[
+                    // Login with Phone button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton.icon(
+                        onPressed: () =>
+                            setState(() => _showPhoneInput = true),
+                        icon: const Icon(Icons.phone_outlined),
+                        label: const Text('Login with Phone Number'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Continue as Guest button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: OutlinedButton.icon(
+                        onPressed: _isLoading ? null : _continueAsGuest,
+                        icon: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2))
+                            : const Icon(Icons.person_outline),
+                        label: Text(
+                          _isLoading
+                              ? 'Please wait...'
+                              : 'Continue as Guest',
+                          style: const TextStyle(color: AppColors.primary),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(
+                              color: AppColors.primary, width: 1.5),
+                        ),
                       ),
                     ),
                   ],

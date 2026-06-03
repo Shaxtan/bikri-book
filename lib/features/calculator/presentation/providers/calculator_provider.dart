@@ -1,59 +1,64 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/calculator_engine.dart';
 
-// ── State ─────────────────────────────────────────────────────────────────────
-
 class CalculatorState {
   const CalculatorState({
-    required this.displayValue,
-    required this.expressionDisplay,
+    this.expression = '',
+    this.liveResult = '',
     this.justCalculated = false,
     this.result,
+    this.canSave = false,
+    this.cursorPos = 0,
   });
 
-  final String displayValue;
-  final String expressionDisplay;
+  final String expression;
+  final String liveResult;
   final bool justCalculated;
   final double? result;
+  final bool canSave;
+  final int cursorPos;
 
-  /// The amount to show on the Save button
-  double get saveAmount => result ?? double.tryParse(displayValue) ?? 0;
-
-  /// Whether there's something meaningful to save
-  bool get canSave => saveAmount != 0 && displayValue != '0';
+  double get saveAmount =>
+      result ?? (double.tryParse(liveResult) ?? 0);
 }
-
-// ── Notifier ──────────────────────────────────────────────────────────────────
 
 class CalculatorNotifier extends StateNotifier<CalculatorState> {
   CalculatorNotifier()
       : _engine = CalculatorEngine(),
-        super(const CalculatorState(
-          displayValue: '0',
-          expressionDisplay: '',
-        ));
+        super(const CalculatorState());
 
   final CalculatorEngine _engine;
 
   CalculatorState _snap() => CalculatorState(
-        displayValue: _engine.displayValue,
-        expressionDisplay: _engine.expressionDisplay,
+        expression: _engine.expression,
+        liveResult: _engine.liveResult,
         justCalculated: _engine.justCalculated,
         result: _engine.result,
+        canSave: _engine.canSave,
+        cursorPos: _engine.cursorPos,
       );
 
-  void pressDigit(String digit) {
-    _engine.pressDigit(digit);
+  void pressDigit(String d) {
+    _engine.insertAtCursor(d);
     state = _snap();
   }
 
   void pressDecimal() {
-    _engine.pressDecimal();
-    state = _snap();
+    final before = _engine.expression.substring(0, _engine.cursorPos);
+    final parts = before.split(RegExp(r'\s+[+\-×÷]\s+'));
+    if (!parts.last.contains('.')) {
+      _engine.insertAtCursor('.');
+      state = _snap();
+    }
   }
 
   void pressOperator(String op) {
-    _engine.pressOperator(op);
+    _engine.insertOperatorAtCursor(op);
+    state = _snap();
+  }
+
+  void pressBackspace() {
+    _engine.backspace();
     state = _snap();
   }
 
@@ -67,11 +72,6 @@ class CalculatorNotifier extends StateNotifier<CalculatorState> {
     state = _snap();
   }
 
-  void pressDelete() {
-    _engine.pressDelete();
-    state = _snap();
-  }
-
   void pressPercent() {
     _engine.pressPercent();
     state = _snap();
@@ -82,17 +82,18 @@ class CalculatorNotifier extends StateNotifier<CalculatorState> {
     state = _snap();
   }
 
-  /// Called after a save — clears the calculator.
+  void setCursorPos(int pos) {
+    _engine.setCursorPos(pos);
+    state = _snap();
+  }
+
   void clearAfterSave() {
     _engine.pressAC();
     state = _snap();
   }
 
-  /// Returns the expression label for storage, e.g. "120 + 250 + 80"
   String get exportExpression => _engine.exportLabel;
 }
-
-// ── Provider ──────────────────────────────────────────────────────────────────
 
 final calculatorProvider =
     StateNotifierProvider<CalculatorNotifier, CalculatorState>(
